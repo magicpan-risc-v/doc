@@ -191,6 +191,20 @@ Insreader模块持续进行工作。当MEM阶段正在访存时，指示信号nl
 
 ## 特权指令模块
 
+特权指令模块是专门用于响应特权指令、维护特权级信息的模块。交互的模块主要有IF模块、ID模块、MEM模块、MMU模块;同时具备清空流水线的能力。内部维护：一个CSR特权寄存器堆、中断产生的组合逻辑判断电路（现主要为时钟中断）、中断/异常的处理。
+
+| 接口名         | 接口方向 | 接口类型         | 注释                                 |
+| -------------- | -------- | ---------------- | ------------------------------------ |
+| id             |          | Flipped(ID_CSR)  | 与ID阶段交互的自定义接口             |
+| mem            |          | Flipped(MEM_CSR) | 与MEM交互的自定义接口                |
+| mmu            | Output   | CSR_MMU          | 与MMU交互的自定义接口                |
+| flush          | Output   | flush            | 清空流水线的信号                     |
+| csrNewPc       | Output   | UInt(64)         | 异常处理的跳转地址线                 |
+| external_inter | Input    | Valid(UInt(32))  | 外部中断信息。未实现，属于预留接口。 |
+| inter          | Output   | Valid(UInt(64))  | CPU内部产生的中断信息                |
+
+
+
 ## I/O管理器模块
 
 I/O管理器模块（iomanager.scala）是连接CPU和硬件控制器的接口，这个模块接受从MMU模块传递过来的实地址，用这个实地址向RAM或串口发起请求。等待Load/Store完成之后，发回ready信号通知MMU模块访存操作完成。
@@ -351,9 +365,25 @@ I/O管理器模块（iomanager.scala）是连接CPU和硬件控制器的接口�
 
 ### ID_CSR
 
+从ID阶段连接CSR寄存器堆的接口，用于读取特定CSR的内容以及CPU当前所处的特权级。
+
+| 接口名 | 接口方向 | 接口类型   | 注释              |
+| ------ | -------- | ---------- | ----------------- |
+| addr   | Output   | UInt（12） | 要读取的CSR的编号 |
+| rdata  | Input    | UInt（64） | 读取到的CSR的内容 |
+| priv   | Input    | UInt（2）  | 当前的特权级      |
+
+其中，2位的priv从00-11分别代表U态，S态，H态（未实现），M态。
+
 ### WrCsrReg
 
-### CsrWriteBack
+用于表示要写回的CSR寄存器信息。
+
+| 接口名   | 接口方向 | 接口类型   | 注释                  |
+| -------- | -------- | ---------- | --------------------- |
+| valid    | Input    | Bool       | 该写回信息是否有效    |
+| csr_idx  | Input    | UInt（12） | 要写回的CSR寄存器编号 |
+| csr_data | Input    | UInt（64） | 要写入的数据          |
 
 ### LastLoadInfo
 
@@ -364,8 +394,35 @@ I/O管理器模块（iomanager.scala）是连接CPU和硬件控制器的接口�
 | valid  | Output   | Bool     | 是否为Load指令         |
 | index  | Output   | UInt(5)  | Load指令读的寄存器编号 |
 
-### MEM_CSR
+### MEM_CSR  
 
-### CSR_MMU
+从MEM阶段到CSR模块的接口。包括CSR寄存器写回以及流水线中发生的异常信息。
+
+| 接口名  | 接口方向 | 接口类型  | 注释                                               |
+| ------- | -------- | --------- | -------------------------------------------------- |
+| wrCSROp | Output   | WrCsrReg  | 从MEM阶段写回CSR寄存器的信息                       |
+| excep   | Output   | Exception | 从流水线到达MEM阶段的异常，流入CSR模块进行异常处理 |
+
+### CSR_MMU  
+
+从CSR传递给MMU的信息。
+
+| 接口名 | 接口方向 | 接口类型   | 注释                                               |
+| ------ | -------- | ---------- | -------------------------------------------------- |
+| satp   | Output   | UInt（64） | satp寄存器的内容，表示地址转换模式以及页表的根地址 |
+| priv   | Output   | UInt（2）  | 当前特权级。用于辅助判断访问是否合法。             |
+| mxr    | Output   | Bool       |                                                    |
+| sum    | Output   | Bool       | S态是否可以处理U态的代码。                         |
 
 ### Exception
+
+异常的具体信息。
+
+| 接口名     | 接口方向 | 接口类型   | 注释                       |
+| ---------- | -------- | ---------- | -------------------------- |
+| valid      | Output   | Bool       | 该信息是否有效             |
+| code       | Output   | UInt（64） | 发生异常的异常号           |
+| value      | Output   | UInt（64） | 要写入到stval寄存器中的值  |
+| pc         | Output   | UInt（64） | 发生异常的pc               |
+| inst_valid | Output   | Bool       | 当前这条指令是否是有效指令 |
+
