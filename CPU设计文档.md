@@ -16,7 +16,7 @@
 * 通用寄存器模块（RegCtrl）
 * 特权指令模块（CSR）
 * I/O管理器模块（IOManager）
-* 控制器模块（RAM、Serial）
+* 访存控制器模块（RAM、Serial）
 * 4组流水线寄存器（IF/ID、ID/EX、EX/MEM、MEM/WB）
 
 除此之外，我们的工程还包括以下测试模块：
@@ -218,7 +218,49 @@ I/O管理器模块（iomanager.scala）是连接CPU和硬件控制器的接口�
 
 对于串口而言，每次只读或写一个字节，使用LBU或SB的访存模式。
 
-## 控制器模块
+## 访存控制器模块
+
+访存控制器模块（serial.v，ram.v）是直接连接SRAM和串口并对其进行访存时序控制的模块，由Verilog语言实现。它接收CPU发送的实际物理地址和读写信号（在CPU中由I/O管理器模块生成），由此完成指令与数据的读写操作。
+
+##### 关于SRAM的64位访存方式  
+
+由于CPU的访存模式允许一次性读写64位，而base RAM和ext RAM的数据线均只有32位，故在这种情况下采取对两块RAM同时进行读写的方法。
+
+要使这种方法可行，就需要对运行的二进制文件进行拆分，相邻的两个32位数据被拆到两块RAM的同一个地址的位置。每64位的数据的低32位被放在ext RAM中，而高32位被放在base RAM中，且地址相同。这样在读写64位时便可以一次读出。
+
+
+
+接口信号：
+
+ram.v
+
+接口信号除时钟信号clk外，还包括：
+
+从I/O管理器模块接收的mem_out信号（类型与RAMOp相同）
+
+![](mem_out.png)
+
+连接至base RAM的信号，包括地址线addr，数据线data，以及片选使能ce，读写使能oe,we，字节使能be
+
+![](base_ram.png)
+
+连接至ext RAM的信号，与base RAM同理
+
+![](ext_ram.png)
+
+serial.v
+
+接口信号除时钟信号clk外，还包括：
+
+从I/O管理器模块接收的serial_out信号（类型与RAMOp相同）
+
+![](serial_out.png)
+
+连接至直连串口的信号rxd和txd
+
+![](serial.png)
+
+
 
 ## 流水线寄存器
 
